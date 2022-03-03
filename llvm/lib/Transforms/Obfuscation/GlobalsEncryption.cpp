@@ -39,8 +39,8 @@ bool GlobalsEncryption::runOnModule(Module &M){
                     uint32_t len = seqData->getNumElements();
                     uint64_t key = cryptoutils->get_uint64_t();
                     // A simple xor encryption
-                    for(int i = 0;i < len * size;i ++){
-                        data[i] ^= ((char*)&key)[i % size];
+                    for(int j = 0;j < len * size;j ++){
+                        data[j] ^= ((char*)&key)[j % size];
                     }
                     GV->setConstant(false);
                     insertArrayDecryption(M, {GV, key, len});

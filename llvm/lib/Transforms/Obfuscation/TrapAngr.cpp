@@ -88,10 +88,10 @@ bool TrapAngr::runOnFunction(Function &F){
                 for(Instruction *I : origInst){
                     if(isa<StoreInst>(I) || isa<CmpInst>(I) || isa<BinaryOperator>(I)){
                         int operandNum = I->getNumOperands();
-                        for(int i = 0;i < operandNum;i ++){
-                            if(isa<ConstantInt>(I->getOperand(i)) 
+                        for(int j = 0;j < operandNum;j ++){
+                            if(isa<ConstantInt>(I->getOperand(j))
                                 && cryptoutils->get_uint8_t() % 100 < ObfuProb){
-                                substitute(I, i);
+                                substitute(I, j);
                             }
                         }
                     }
