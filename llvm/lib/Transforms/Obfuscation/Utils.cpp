@@ -46,6 +46,7 @@ BasicBlock* llvm::createCloneBasicBlock(BasicBlock *BB){
     }
     ValueToValueMapTy VMap;
     BasicBlock *cloneBB = CloneBasicBlock(BB, VMap, "cloneBB", BB->getParent());
+    BasicBlock::iterator origI = BB->begin();
     // 对克隆基本块的引用进行修复
     for(Instruction &I : *cloneBB){
         for(int i = 0;i < I.getNumOperands();i ++){
@@ -54,6 +55,68 @@ BasicBlock* llvm::createCloneBasicBlock(BasicBlock *BB){
                 I.setOperand(i, V);
             }
         }
+        // SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
+        // I.getAllMetadata(MDs);
+        // for(std::pair<unsigned, MDNode *> pair : MDs){
+        //     MDNode *MD = MapMetadata(pair.second, VMap);
+        //     if(MD){
+        //         errs() << "DEBUG1: " << *pair.second << "\n";
+        //         errs() << "DEBUG2: " << *MD << "\n";
+        //         I.setMetadata(pair.first, MD);
+        //     }
+        // }
+        //I.setDebugLoc(origI->getDebugLoc());
+        origI++;
     }
     return cloneBB;
+}
+
+std::string llvm::readAnnotate(Function *f)   //取自原版ollvm项目
+{
+    std::string annotation = "";
+    /* Get annotation variable */
+    GlobalVariable *glob=f->getParent()->getGlobalVariable( "llvm.global.annotations" );
+    if ( glob != NULL )
+    {
+        /* Get the array */
+        if ( ConstantArray * ca = dyn_cast<ConstantArray>( glob->getInitializer() ) )
+        {
+            for ( unsigned i = 0; i < ca->getNumOperands(); ++i )
+            {
+                /* Get the struct */
+                if ( ConstantStruct * structAn = dyn_cast<ConstantStruct>( ca->getOperand( i ) ) )
+                {
+                    if ( ConstantExpr * expr = dyn_cast<ConstantExpr>( structAn->getOperand( 0 ) ) )
+                    {
+                        /*
+                         * If it's a bitcast we can check if the annotation is concerning
+                         * the current function
+                         */
+                        if ( expr->getOpcode() == Instruction::BitCast && expr->getOperand( 0 ) == f )
+                        {
+                            ConstantExpr *note = cast<ConstantExpr>( structAn->getOperand( 1 ) );
+                            /*
+                             * If it's a GetElementPtr, that means we found the variable
+                             * containing the annotations
+                             */
+                            if ( note->getOpcode() == Instruction::GetElementPtr )
+                            {
+                                if ( GlobalVariable * annoteStr = dyn_cast<GlobalVariable>( note->getOperand( 0 ) ) )
+                                {
+                                    if ( ConstantDataSequential * data = dyn_cast<ConstantDataSequential>( annoteStr->getInitializer() ) )
+                                    {
+                                        if ( data->isString() )
+                                        {
+                                            annotation += data->getAsString().lower() + " ";
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return(annotation);
 }

@@ -14,13 +14,26 @@ using std::vector;
 // 混淆次数，混淆次数越多混淆结果越复杂
 static cl::opt<int> ObfuTimes("bcf-times", cl::init(1), cl::desc("Run BogusControlFlow pass <bcf-times> time(s)"));
 
+bool containsInlineAsm(BasicBlock &BB){
+    for(Instruction &I : BB){
+        for(int i = 0;i < I.getNumOperands();i ++){
+            if(isa<InlineAsm>(I.getOperand(i))){
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 bool BogusControlFlow::runOnFunction(Function &F){
     if(enable){
         INIT_CONTEXT(F);
         for(int i = 0;i < ObfuTimes;i ++){
             vector<BasicBlock*> origBB;
             for(BasicBlock &BB : F){
-                origBB.push_back(&BB);
+                if(!containsInlineAsm(BB)){
+                    origBB.push_back(&BB);
+                }
             }
             for(BasicBlock *BB : origBB){
                 bogus(BB);
@@ -51,9 +64,8 @@ void BogusControlFlow::bogus(BasicBlock *entryBB){
     // 第一步，拆分得到 entryBB, bodyBB, endBB
     // 其中所有的 PHI 指令都在 entryBB(如果有的话)
     // endBB 只包含一条终结指令
-    BasicBlock *bodyBB = entryBB->splitBasicBlock(entryBB->getFirstNonPHI(), "bodyBB");
+    BasicBlock *bodyBB = entryBB->splitBasicBlock(entryBB->getFirstNonPHIOrDbgOrLifetime(), "bodyBB");
     BasicBlock *endBB = bodyBB->splitBasicBlock(bodyBB->getTerminator(), "endBB");
-    
     // 第二步，克隆 bodyBB 得到克隆块 cloneBB
     BasicBlock *cloneBB = createCloneBasicBlock(bodyBB);
 

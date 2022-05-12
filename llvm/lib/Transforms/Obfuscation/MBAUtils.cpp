@@ -1,11 +1,13 @@
+#include "Eigen/Dense"
 #include "llvm/Transforms/Obfuscation/MBAUtils.h"
-#include <vector>
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Obfuscation/CryptoUtils.h"
+#include "llvm/Transforms/Obfuscation/Utils.h"
+#include <algorithm>
+#include <vector>
 #include <cstdint>
-using namespace z3;
-using namespace std;
+using namespace Eigen;
 using namespace llvm;
 
 int8_t truthTable[15][4] = {
@@ -26,59 +28,60 @@ int8_t truthTable[15][4] = {
     {1, 1, 1, 1},   // -1
 };
 
-int64_t* llvm::generateLinearMBA(int termsNumber){
-    int* exprSelector = new int[termsNumber];
+int64_t* llvm::generateLinearMBA(int exprNumber){
+    int* exprSelector = new int[exprNumber];
+    int64_t *coeffs = new int64_t[15];
     while(true){
-        context c;
-        vector<expr> params;
-        solver s(c);
-        for(int i = 0;i < termsNumber;i ++){
-            string paramName = formatv("a{0:d}", i);
-            params.push_back(c.int_const(paramName.c_str()));
-        }
-        for(int i = 0;i < termsNumber;i ++){
+        std::fill_n(coeffs, 15, 0);
+        for(int i = 0;i < exprNumber;i ++){
             exprSelector[i] = rand() % 15;
         }
-        for(int i = 0;i < 4;i ++){
-            expr equ = c.int_val(0);
-            for(int j = 0;j < termsNumber;j ++){
-                equ = equ + params[j] * truthTable[exprSelector[j]][i];
+        MatrixXd A(4, exprNumber);
+        VectorXd b(4);
+        VectorXd X;
+        b << 0, 0, 0, 0;
+        for(int i = 0;i < exprNumber;i ++){
+            for(int j = 0;j < 4;j ++){
+                A(j, i) = truthTable[exprSelector[i]][j];
             }
-            s.add(equ == 0);
         }
-        expr notZeroCond = c.bool_val(false);
-        // a1 != 0 || a2 != 0 || ... || an != 0 
-        for(int i = 0;i < termsNumber;i ++){
-            notZeroCond = notZeroCond || (params[i] != 0);
+        X = A.fullPivLu().kernel().col(0);
+        // reject if coeffs contain non-integer or are all zero
+        bool reject = false;
+        for(int i = 0;i < exprNumber;i ++){
+            coeffs[exprSelector[i]] += X[i];
+            if(std::abs(X[i] - (int64_t)X[i]) > 1e-5){
+                reject = true;
+                break;
+            }
         }
-        s.add(notZeroCond);
-        if(s.check() != sat){
-            continue;
-        }
-        model m = s.get_model();
-        int64_t *terms = new int64_t[15];
-        fill_n(terms, 15, 0);
-        for(int i = 0;i < termsNumber;i ++){
-            terms[exprSelector[i]] += m.eval(params[i]).get_numeral_int64();
-        }
-        // reject if all params are 0
-        bool all_zero = true;
+        if(reject) continue;
+        reject = true;
         for(int i = 0;i < 15;i ++){
-            if(terms[i] != 0) all_zero = false;
+            if(coeffs[i] != 0) reject = false;
         }
-        if(all_zero){
-            delete[] terms;
-            continue;
-        }
-        return terms;
+        if(reject) continue;
+        delete[] exprSelector;
+        return coeffs;
     }
 }
 
-Value* llvm::insertLinearMBA(int64_t *params, BinaryOperator *insertBefore){
+Value* llvm::insertLinearMBA(int64_t *params, Instruction *insertBefore){
     IRBuilder<> builder(insertBefore->getContext());
     builder.SetInsertPoint(insertBefore);
-    Value *x = insertBefore->getOperand(0);
-    Value *y = insertBefore->getOperand(1);
+    Value *x, *y;
+    if(isa<BinaryOperator>(insertBefore) && insertBefore->getNumOperands() == 2){
+        x = insertBefore->getOperand(0);
+        y = insertBefore->getOperand(1);
+    }else{
+        Module &M = *insertBefore->getModule();
+        Type *type = insertBefore->getOperand(0)->getType();
+        uint64_t randX = cryptoutils->get_uint64_t(), randY = cryptoutils->get_uint64_t();
+        GlobalVariable *xPtr = new GlobalVariable(M, type, false, GlobalValue::PrivateLinkage, CONST(type, randX), "x");
+        GlobalVariable *yPtr = new GlobalVariable(M, type, false, GlobalValue::PrivateLinkage, CONST(type, randY), "y");
+        x = builder.CreateLoad(xPtr);
+        y = builder.CreateLoad(yPtr);
+    }
     Value *mbaExpr = builder.CreateAlloca(x->getType());
     builder.CreateStore(ConstantInt::get(x->getType(), 0), mbaExpr);
     mbaExpr = builder.CreateLoad(mbaExpr);
@@ -121,16 +124,27 @@ Value* llvm::insertLinearMBA(int64_t *params, BinaryOperator *insertBefore){
     return mbaExpr;
 }
 
+// Extended Euclid's Theorem function.
+uint64_t exgcd(uint64_t a, uint64_t b, uint64_t& x, uint64_t& y) {
+    if (b == 0) {
+        x = 1, y = 0;
+        return a;
+    }
+    uint64_t g = exgcd(b, a % b, y, x);
+    y -= a / b * x;
+    return g;
+}
+
+uint64_t inv(uint64_t a, uint64_t p) {
+    uint64_t x, y;
+    exgcd(a, p, x, y);
+    // get the inverse element
+    return (x % p + p) % p;
+}
+
 uint64_t inverse(uint64_t n, uint32_t bitWidth){
-    context c;
-    solver s(c);
-    expr a = c.bv_val(n, bitWidth);
-    expr a_inv = c.bv_const("a_inv", bitWidth);
-    s.add(a * a_inv == 1);
-    s.add(a_inv != 0);
-    s.check();
-    model m = s.get_model();
-    return m.eval(a_inv).get_numeral_uint64();
+    assert(bitWidth <= 32);
+    return inv(n, 1LL << bitWidth);
 }
 
 
@@ -150,13 +164,19 @@ void generateUnivariatePoly(uint64_t *a, uint64_t *b, uint32_t bitWidth){
     a[0] = a0, a[1] = a1, b[0] = b0, b[1] = b1;
 }
 
-Value* llvm::insertPolynomialMBA(Value *linearMBAExpr, BinaryOperator *insertBefore){
+Value* llvm::insertPolynomialMBA(Value *linearMBAExpr, Instruction *insertBefore){
     IRBuilder<> builder(insertBefore->getContext());
     builder.SetInsertPoint(insertBefore);
     Type *operandType = insertBefore->getOperand(0)->getType();
     uint32_t bitWidth = operandType->getIntegerBitWidth();
     uint64_t a[2], b[2];
     generateUnivariatePoly(a, b, bitWidth);
+    // Just for debug
+    // uint64_t x = cryptoutils->get_uint64_t();
+    // APInt mask = cast<IntegerType>(operandType)->getMask();
+    // if(((a[1] * (b[1] * x + b[0]) + a[0]) & mask) != (x & mask)){
+    //     assert(false);
+    // }
     Value *expr;
     expr = builder.CreateMul(ConstantInt::get(operandType, b[1]), linearMBAExpr);
     expr = builder.CreateAdd(expr, ConstantInt::get(operandType, b[0]));

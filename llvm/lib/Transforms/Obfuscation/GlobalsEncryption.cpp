@@ -27,26 +27,34 @@ bool GlobalsEncryption::runOnModule(Module &M){
     }
     for(int i = 0;i < ObfuTimes;i ++){
         for(GlobalVariable *GV : GVs){
-            if(GV->hasInitializer() && (GV->getName().contains(".str") || !OnlyStr)
-                // Do not encrypt globals having a section specified as "llvm.metadata"
+            // Only encrypt globals of integer and array
+            if(!GV->getValueType()->isIntegerTy() && !GV->getValueType()->isArrayTy()){
+                continue;
+            }      
+            if(GV->hasInitializer() && GV->getInitializer() && (GV->getName().contains(".str") || !OnlyStr)
+                // Do not encrypt globals having a section named "llvm.metadata"
                 && !GV->getSection().equals("llvm.metadata")){
                 Constant *initializer = GV->getInitializer();
-                ConstantInt *varData = dyn_cast<ConstantInt>(initializer);
-                ConstantDataSequential *seqData = dyn_cast<ConstantDataSequential>(initializer);
-                if(seqData && GV->getValueType()->isArrayTy()){
-                    char *data = const_cast<char*>(seqData->getRawDataValues().data());
-                    uint32_t size = seqData->getElementByteSize();
-                    uint32_t len = seqData->getNumElements();
+                ConstantInt *intData = dyn_cast<ConstantInt>(initializer);
+                ConstantDataArray *arrData = dyn_cast<ConstantDataArray>(initializer);
+                if(arrData){
+                    uint32_t eleSize = arrData->getElementByteSize();
+                    uint32_t eleNum = arrData->getNumElements();
+                    uint32_t arrLen = eleNum * eleSize;
+                    char *data = const_cast<char*>(arrData->getRawDataValues().data());
+                    char *dataCopy = new char[arrLen];
+                    memcpy(dataCopy, data, arrLen);
                     uint64_t key = cryptoutils->get_uint64_t();
                     // A simple xor encryption
-                    for(int j = 0;j < len * size;j ++){
-                        data[j] ^= ((char*)&key)[j % size];
+                    for(uint32_t i = 0;i < arrLen;i ++){
+                        dataCopy[i] ^= ((char*)&key)[i % eleSize];
                     }
+                    GV->setInitializer(ConstantDataArray::getRaw(StringRef(dataCopy, arrLen), eleNum, arrData->getElementType()));
                     GV->setConstant(false);
-                    insertArrayDecryption(M, {GV, key, len});
-                }else if(varData && GV->getValueType()->isIntegerTy()){
+                    insertArrayDecryption(M, {GV, key, eleNum});
+                }else if(intData){
                     uint64_t key = cryptoutils->get_uint64_t();
-                    ConstantInt *enc = CONST(varData->getType(), key ^ varData->getZExtValue());
+                    ConstantInt *enc = CONST(intData->getType(), key ^ intData->getZExtValue());
                     GV->setInitializer(enc);
                     GV->setConstant(false);
                     insertIntDecryption(M, {GV, key, 1LL});
@@ -60,7 +68,7 @@ bool GlobalsEncryption::runOnModule(Module &M){
 void GlobalsEncryption::insertIntDecryption(Module &M, EncryptedGV encGV){
     vector<Type*>args;
     FunctionType* funcType = FunctionType::get(Type::getVoidTy(M.getContext()), args, false);
-    string funcName = formatv("decrypt.{0:x-}", cryptoutils->get_uint64_t());
+    string funcName = formatv("{0}.{1:x-}", M.getName(), M.getMDKindID(encGV.GV->getName()));
     FunctionCallee callee = M.getOrInsertFunction(funcName, funcType);
     Function *func = cast<Function>(callee.getCallee());
 
@@ -77,7 +85,7 @@ void GlobalsEncryption::insertIntDecryption(Module &M, EncryptedGV encGV){
 void GlobalsEncryption::insertArrayDecryption(Module &M, EncryptedGV encGV){
     vector<Type*>args;
     FunctionType* funcType = FunctionType::get(Type::getVoidTy(M.getContext()), args, false);
-    string funcName = formatv("decrypt.{0:x-}", cryptoutils->get_uint64_t());
+    string funcName = formatv("{0}.{1:x-}", M.getName(), M.getMDKindID(encGV.GV->getName()));
     FunctionCallee callee = M.getOrInsertFunction(funcName, funcType);
     Function *func = cast<Function>(callee.getCallee());
     BasicBlock *entry = BasicBlock::Create(*CONTEXT, "entry", func);

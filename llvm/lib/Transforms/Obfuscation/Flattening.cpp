@@ -14,6 +14,7 @@ using namespace llvm;
 using std::vector;
  
 bool Flattening::runOnFunction(Function &F){
+    //if(enable && readAnnotate(&F).find("fla1")){
     if(enable){
         INIT_CONTEXT(F);
         flatten(F);

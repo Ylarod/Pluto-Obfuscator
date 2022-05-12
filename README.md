@@ -1,18 +1,27 @@
 # Pluto-Obfuscator
-Pluto is an obfuscator based on LLVM 12.0.1, being developed and maintained by 34r7h4mn.
+Pluto is an obfuscator based on LLVM 12.0.1, mainly developed by 34r7h4mn.
 > Pluto is a dwarf planet in the Kuiper belt, a ring of bodies beyond the orbit of Neptune.
 ## Environment
+This project was developed and tested on the following environment:
 - Ubuntu 20.04.3 LTS
 - Clang/LLVM 12.0.1
 - CMake 3.16.3
 - Ninja 1.10.0
-- libz3-dev 4.8.7-4build1
+
+You can also build this project on Windows and MacOS, or even embed it in Android NDK toolchain (need some adjustment, tested on Android NDK r23).
+
+## Features
+- Control Flow Flattening
+- Bogus Control Flow
+- Instruction Substitution
+- Random Control Flow
+- Variable Substitution
+- String Encryption
+- Globals Encryption
+- [Trap Angr (Experimental)](TrapAngr.md)
+- MBA Obfuscation
+
 ## Usage
-### Dependencies
-The MBA Obfuscation pass depends on z3-solver. On Ubuntu, you can simply install it with the following command:
-```shell
-sudo apt install libz3-dev 
-```
 ### Building on Linux/Windows
 The following commands work on both Linux and Windows:
 ```shell
@@ -38,16 +47,20 @@ ninja
 
 
 
-### Examples
+## Test
+### Fast test on AES
+Run a test case of AES to check out buggy code quickly and roughly.
 
-Several examples are available in [obfu-examples](obfu-examples) and [run-examples.sh](run-examples.sh)
-## Features
-- Control Flow Flattening
-- Bogus Control Flow
-- Instruction Substitution
-- Random Control Flow
-- Variable Substitution
-- String Encryption
-- Globals Encryption
-- [Trap Angr](TrapAngr.md)
-- MBA Obfuscation
+See [fast-check.sh](fast-check.sh) and [test/aes](test/aes/).
+### Full test on libsecp256k1
+We have a full test on a crypto library named libsecp256k1 from [bitcoin-core/secp256k1](https://github.com/bitcoin-core/secp256k1), to insure our passes work fine in most cases.
+
+Passed:
+- Flattening: `-O2 -mllvm -fla`
+- BogusControlFlow: `-O2 -mllvm -bcf`
+- Substitution: `-O2 -mllvm -sub`
+- GlobalsEncryption: `-O2 -mllvm -gle`
+- MBAObfuscation: `-O2 -mllvm -mba -mllvm -mba-prob=100`
+- FullProtection (**HIGHLY RECOMMENDED**): `-mllvm -mba -mllvm -mba-prob=100 -mllvm -fla -mllvm -gle`
+
+See [check.sh](check.sh) and [test/secp256k1](test/secp256k1/).

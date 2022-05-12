@@ -2,3 +2,6 @@ build/
 cmake-build-debug/
 .vscode
 .DS_Store
+debug/
+debug.sh
+test/aes/TestProgram.out
