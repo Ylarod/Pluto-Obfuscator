@@ -1,22 +1,20 @@
-#include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Pass.h"
 
-namespace llvm{
+namespace llvm {
 
-    class TrapAngr : public FunctionPass{
-        public:
-            static char ID;
-            bool enable;
+class TrapAngr : public FunctionPass {
+public:
+  static char ID;
+  bool enable;
 
-            TrapAngr(bool enable) : FunctionPass(ID) { 
-                this->enable = enable;
-            }
+  explicit TrapAngr(bool enable) : FunctionPass(ID) { this->enable = enable; }
 
-            bool runOnFunction(Function &F);
+  bool runOnFunction(Function &F) override;
 
-            void substitute(Instruction *I, int i);
-    };
+  static void substitute(Instruction *I, unsigned int i);
+};
 
-    FunctionPass* createTrapAngrPass(bool enable);
-    
-}
+FunctionPass *createTrapAngrPass(bool enable);
+
+} // namespace llvm
