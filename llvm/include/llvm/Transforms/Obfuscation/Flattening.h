@@ -12,6 +12,10 @@ public:
 
   explicit Flattening(bool enable) : FunctionPass(ID) { this->enable = enable; }
 
+  StringRef getPassName() const override{
+    return "Flattening";
+  }
+
   static void flatten(Function &F);
 
   bool runOnFunction(Function &F) override;

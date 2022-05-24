@@ -13,6 +13,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "RandomControlFlow";
+  }
+
   bool runOnFunction(Function &F) override;
 
   // 创建一组等效于 origVar 的指令

@@ -10,6 +10,10 @@ public:
 
   explicit TrapAngr(bool enable) : FunctionPass(ID) { this->enable = enable; }
 
+  StringRef getPassName() const override{
+    return "TrapAngr";
+  }
+
   bool runOnFunction(Function &F) override;
 
   static void substitute(Instruction *I, unsigned int i);

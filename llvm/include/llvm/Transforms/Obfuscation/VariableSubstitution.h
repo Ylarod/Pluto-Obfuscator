@@ -12,6 +12,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "VariableSubstitution";
+  }
+
   bool runOnFunction(Function &F) override;
 
   // 对单个指令 BI 进行替换

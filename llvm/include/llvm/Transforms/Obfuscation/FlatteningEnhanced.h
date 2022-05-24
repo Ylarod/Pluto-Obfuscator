@@ -20,6 +20,10 @@ public:
 
   explicit MyFlatten(bool enable) : FunctionPass(ID) { this->enable = enable; }
 
+  StringRef getPassName() const override{
+    return "MyFlatten";
+  }
+
   static std::list<TreeNode *>::iterator
   randomElement(std::list<TreeNode *> *x);
   static void expandNode(TreeNode *node);

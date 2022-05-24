@@ -14,6 +14,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "BogusControlFlow";
+  }
+
   bool runOnFunction(Function &F) override;
 
   // 对基本块 BB 进行混淆

@@ -13,6 +13,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "MBAObfuscation";
+  }
+
   bool runOnFunction(Function &F) override;
 
   static void substituteConstant(Instruction *I, unsigned int i);

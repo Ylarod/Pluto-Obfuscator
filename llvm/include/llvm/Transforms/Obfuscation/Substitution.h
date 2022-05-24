@@ -21,6 +21,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "Substitution";
+  }
+
   bool runOnFunction(Function &F) override;
 
   void substitute(BinaryOperator *BI);

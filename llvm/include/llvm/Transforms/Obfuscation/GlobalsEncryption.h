@@ -20,6 +20,10 @@ public:
     this->enable = enable;
   }
 
+  StringRef getPassName() const override{
+    return "GlobalsEncryption";
+  }
+
   bool runOnModule(Module &M) override;
 
   static void insertArrayDecryption(Module &M, EncryptedGV encGV);
