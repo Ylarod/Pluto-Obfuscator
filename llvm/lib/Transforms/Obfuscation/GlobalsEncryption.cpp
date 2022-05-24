@@ -79,7 +79,11 @@ void GlobalsEncryption::insertIntDecryption(Module &M, EncryptedGV encGV) {
       FunctionType::get(Type::getVoidTy(M.getContext()), args, false);
   string funcName =
       formatv("{0}.{1:x-}", M.getName(), M.getMDKindID(encGV.GV->getName()));
-  FunctionCallee callee = M.getOrInsertFunction(funcName, funcType);
+  MD5 funcNameHash;
+  MD5::MD5Result Result{};
+  funcNameHash.update(funcName);
+  funcNameHash.final(Result);
+  FunctionCallee callee = M.getOrInsertFunction(Result.digest(), funcType);
   auto *func = cast<Function>(callee.getCallee());
 
   BasicBlock *entry = BasicBlock::Create(*CONTEXT, "entry", func);
@@ -99,7 +103,11 @@ void GlobalsEncryption::insertArrayDecryption(Module &M, EncryptedGV encGV) {
       FunctionType::get(Type::getVoidTy(M.getContext()), args, false);
   string funcName =
       formatv("{0}.{1:x-}", M.getName(), M.getMDKindID(encGV.GV->getName()));
-  FunctionCallee callee = M.getOrInsertFunction(funcName, funcType);
+  MD5 funcNameHash;
+  MD5::MD5Result Result{};
+  funcNameHash.update(funcName);
+  funcNameHash.final(Result);
+  FunctionCallee callee = M.getOrInsertFunction(Result.digest(), funcType);
   auto *func = cast<Function>(callee.getCallee());
   BasicBlock *entry = BasicBlock::Create(*CONTEXT, "entry", func);
   BasicBlock *forCond = BasicBlock::Create(*CONTEXT, "for.cond", func);
