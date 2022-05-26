@@ -114,3 +114,31 @@ std::string llvm::readAnnotate(Function *f) //取自原版ollvm项目
   }
   return (annotation);
 }
+
+void llvm::printInst(Instruction* ins) {
+  errs() << *ins << "\n";
+}
+
+
+void llvm::printBB(BasicBlock* BB) {
+  for (auto & i : *BB) {
+    printInst(&i);
+  }
+  errs() << "\n";
+}
+
+void llvm::printFunction(Function* f) {
+  errs() << "Function Name:" << f->getName() << "\n";
+  for (auto & i : *f) {
+    errs() << i.getName() << "\n";
+    printBB(&i);
+  }
+}
+
+void llvm::printModule(Module *m) {
+  errs() << "Module Name:" << m->getName() << "\n";
+  for (auto & i : *m) {
+    errs() << i.getName() << "\n";
+    printFunction(&i);
+  }
+}

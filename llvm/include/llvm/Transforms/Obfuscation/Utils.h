@@ -19,6 +19,11 @@ namespace llvm {
 void fixStack(Function &F);
 BasicBlock *createCloneBasicBlock(BasicBlock *BB);
 std::string readAnnotate(Function *f);
+
+void printInst(Instruction* ins);
+void printBB(BasicBlock* BB);
+void printFunction(Function* f);
+void printModule(Module* m);
 } // namespace llvm
 
 #endif // LLVM_UTILS_H
